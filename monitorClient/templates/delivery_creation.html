@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        /* CSS styles for the tables and separator */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            padding-top: 100px;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 800px;
+            height: 80%;
+            max-height: 600px;
+            overflow-y: scroll;
+        }
+        #tables-container {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+        }
+
+        #original-table-container, #new-table-container {
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+        }
+        
+        #metadata-container {
+            width: 100%;
+            height: 100%;
+            margin: auto;
+/*             overflow-y: auto; */
+        }
+
+        #original-table-container {
+            border-right: 1px solid black;
+        }
+
+        #separator {
+            width: 10px;
+            cursor: ew-resize;
+            background-color: black;
+        }
+
+        /* CSS styles for the tables themselves */
+        h1 {
+          text-align: center;
+        }
+
+        table {
+          border-collapse: collapse;
+          margin: 0 auto;
+        }
+
+        thead {
+          background-color: #ddd;
+        }
+
+        th,
+        td {
+          padding: 0.5em;
+          text-align: center;
+          border: 1px solid #ddd;
+        }
+
+        th:first-child,
+        td:first-child {
+          text-align: left;
+        }
+
+        th:last-child,
+        td:last-child {
+          text-align: center;
+        }
+
+        button {
+          background-color: #ddd;
+          border: none;
+          color: #000;
+          padding: 0.5em;
+        }
+
+        button:hover {
+          background-color: #bbb;
+        }
+
+        input[type="button"] {
+          background-color: #ddd;
+          border: none;
+          color: #000;
+          padding: 0.5em;
+          margin-right: 1em;
+        }
+
+        input[type="button"]:hover {
+          background-color: #bbb;
+        }
+    </style>
+    <title>Define delivery</title>
+</head>
+<body>
+    
+
+    <div id="tables-container">
+        <a href="/">
+          <button>Back</button>
+        </a>
+        <div id="new-table-container">
+             <div id="info-container">
+             <h1>New delivery</h1>
+             <div id="metadata-container">
+                <label for="comments">Notes on delivery:</label>
+                <br>
+                <textarea id="comments" name="comments" rows="10" cols="60"></textarea>
+            </div>
+            <div id="evidence-container">
+              <label for="file-input">Evidence images: </label>
+              <input type="file" id="file-input" name="files[]" multiple accept=".png, .jpg, .jpeg, .PNG, .JPEG, .JPG">
+              <ul id="file-list"></ul>
+            </div>
+            </div>
+            <button id="show-modal-btn">Add volumes</button>
+            <button onclick="deleteSelected()">Remove selected volumes</button>
+            <div class="modal" id="table-modal">
+                <div class="modal-content">
+                    <div id="original-table-container">
+                        <button onclick="refreshList()">Refresh</button>
+                        <button onclick="addSelected()">Add selected</button>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th></th>
+                                    <th>PartitionScheme</th>
+                                    <th>MainDeviceIdentifier</th>
+                                    <th>MainDeviceSize</th>
+                                    <th>Content</th>
+                                    <th>DeviceIdentifier</th>
+                                    <th>DiskUUID</th>
+                                    <th>Size</th>
+                                    <th>VolumeName</th>
+                                    <th>VolumeUUID</th>
+                                    <th>MountPoint</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="list-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <table id="delivery">
+                <caption style="font-weight: bold"><h1>Volumes within delivery</h1></caption>
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>PartitionScheme</th>
+                        <th>MainDeviceIdentifier</th>
+                        <th>MainDeviceSize</th>
+                        <th>Content</th>
+                        <th>DeviceIdentifier</th>
+                        <th>DiskUUID</th>
+                        <th>Size</th>
+                        <th>VolumeName</th>
+                        <th>VolumeUUID</th>
+                        <th>MountPoint</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="delivery-table">
+                </tbody>
+            </table>
+            <button onclick="createDelivery()">Create delivery</button>
+
+        </div>
+
+    </div>
+
+   
+
+
+    <script src = "https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+
+    <script>
+      const fileInput = document.querySelector('#file-input');
+      const fileList = document.querySelector('#file-list');
+      var files_in = {}
+
+      fileInput.addEventListener('change', (event) => {
+        const files = event.target.files;
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const listItem = document.createElement('li');
+          const fileName = document.createElement('span');
+          fileName.textContent = file.name;
+          const removeButton = document.createElement('button');
+          removeButton.textContent = 'Remove';
+          removeButton.addEventListener('click', (event) => {
+            listItem.remove();
+            if (fileName in files_in){
+                delete files_in[fileName];
+            }
+          });
+          listItem.appendChild(fileName);
+          listItem.appendChild(removeButton);
+          fileList.appendChild(listItem);
+          files_in[file.name] = file;
+        }
+      });
+        function refreshList() {
+            fetch('/attached_drives')
+            .then(response => response.json())
+            .then(data => {
+                let table = document.getElementById("list-body");
+                table.innerHTML = "";
+                data.forEach(row => {
+                    let tr = document.createElement("tr");
+                    let td1 = document.createElement("td");
+                    let td2 = document.createElement("td");
+                    let td3 = document.createElement("td");
+                    let td4 = document.createElement("td");
+                    let td5 = document.createElement("td");
+                    let td6 = document.createElement("td");
+                    let td7 = document.createElement("td");
+                    let td8 = document.createElement("td");
+                    let td9 = document.createElement("td");
+                    let td10 = document.createElement("td");
+                    let td11 = document.createElement("td");
+                    let checkbox = document.createElement("input");
+                    tr.row_json = row;
+                    checkbox.type = "checkbox";
+                    checkbox.name = "checkbox";
+                    td1.appendChild(checkbox);
+                    td2.innerText = row['PartitionScheme'];
+                    td3.innerText = row['MainDeviceIdentifier'];
+                    td4.innerText = row['MainDeviceSize'];
+                    td5.innerText = row['Content'];
+                    td6.innerText = row['DeviceIdentifier'];
+                    td7.innerText = row['DiskUUID'];
+                    td8.innerText = row['Size'];
+                    td9.innerText = row['VolumeName'];
+                    td10.innerText = row['VolumeUUID'];
+                    td11.innerText = row['MountPoint'];
+                    
+                    tr.appendChild(td1);
+                    tr.appendChild(td2);
+                    tr.appendChild(td3);
+                    tr.appendChild(td4);
+                    tr.appendChild(td5);
+                    tr.appendChild(td6);
+                    tr.appendChild(td7);
+                    tr.appendChild(td8);
+                    tr.appendChild(td9);
+                    tr.appendChild(td10);
+                    tr.appendChild(td11);
+                    // tr.appendChild(delete_button);
+                    // tr.appendChild(add_button);
+                    table.appendChild(tr);
+                });
+            });
+        }
+        
+        function deleteSelected() {
+            let table = document.getElementById("list-body");
+            let newTable = document.getElementById("delivery-table");
+            let ncheckboxes = newTable.querySelectorAll('input[name=checkbox]:checked');
+            ncheckboxes.forEach(checkbox => {
+                let row = checkbox.parentNode.parentNode;
+                let deviceId = row.cells[5].innerText;
+                for (let i = 0; i < table.rows.length; i++) {
+                  if (table.rows[i].cells[5].innerText === deviceId) {
+                    table.rows[i].style.backgroundColor = "#FFFFFF";
+                  }
+                }
+                checkbox.parentNode.parentNode.remove();
+            });
+        }
+        
+
+         function addSelected() {
+          let table = document.getElementById("list-body");
+          let checkboxes = table.querySelectorAll('input[name=checkbox]:checked');
+          let newTable = document.getElementById("delivery-table");
+          checkboxes.forEach(checkbox => {
+            row_json = checkbox.parentNode.parentNode.row_json
+            let row = checkbox.parentNode.parentNode.cloneNode(true);
+            row.row_json = row_json;
+            checkbox.parentNode.parentNode.style.backgroundColor = "#f1f8e9";
+            let deviceId = row.cells[5].innerText;
+            let duplicateFound = false;
+            for (let i = 0; i < newTable.rows.length; i++) {
+              if (newTable.rows[i].cells[5].innerText === deviceId) {
+                duplicateFound = true;
+                break;
+              }
+            }
+            if (!duplicateFound) {
+              newTable.appendChild(row);
+            }
+          });
+        }
+
+        function createDelivery() {
+              const comments = document.getElementById("comments").value;
+              const volumeRows = document.querySelectorAll("#delivery-table tr");
+              const volumeConfigs = [...volumeRows].map(row => JSON.stringify(row.row_json));
+
+              if (volumeConfigs.length) {
+                const formData = new FormData();
+                formData.append("volumes", volumeConfigs);
+                formData.append("comments", comments);
+
+                var nfiles = files_in.length;
+                for (fname in files_in) {
+                  formData.append("files[]", files_in[fname]);
+                  nfiles = nfiles + 1;
+                }
+                if(nfiles == 0) {
+                    $('#msg').html('<span style="color:red">Select at least one file</span>');
+                    return;
+                }
+                $.ajax({
+                  url: "/create_delivery",
+                  dataType: 'json',
+                  cache: false,
+                  contentType: false,
+                  processData: false,
+                  data: formData,
+                  type: 'post',
+                  success: function(data) {
+                    alert(JSON.stringify(data))
+                    window.location.href = "/";
+                  },
+                  error: function(xhr, status, error) {
+                    alert(`Error creating delivery: ${error}`);
+                  }
+                });
+              } else {
+                alert("Please select at least one volume.");
+              }
+            }
+
+        const showModalBtn = document.getElementById("show-modal-btn");
+        const tableModal = document.getElementById("table-modal");
+        const modalContent = document.querySelector(".modal-content");
+
+        showModalBtn.addEventListener("click", () => {
+            tableModal.style.display = "block";
+        });
+
+        modalContent.addEventListener("click", (event) => {
+            if (event.target === modalContent) {
+                tableModal.style.display = "none";
+            }
+        });
+
+        window.addEventListener("click", (event) => {
+            if (event.target === tableModal) {
+                tableModal.style.display = "none";
+            }
+        });
+ 
+        $(document).ready(function() {
+          refreshList();
+        });
+
+    </script>
+</body>
+</html>

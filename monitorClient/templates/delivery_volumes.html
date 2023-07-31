@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Delivery Table</title>
+<style>
+    progress {
+        background-color: #000;
+    }
+    table {
+        font-family: Arial, Helvetica, sans-serif;
+        border-collapse: collapse;
+        width: 100%;
+    }
+
+    td, th {
+        border: 1px solid #ddd;
+        padding: 8px;
+    }
+
+    tr:nth-child(even) {
+        background-color: #f2f2f2;
+    }
+
+    tr:hover {
+        background-color: #ddd;
+    }
+
+    th {
+        padding-top: 12px;
+        padding-bottom: 12px;
+        text-align: left;
+        background-color: #04AA6D;
+        color: white;
+        cursor: pointer;
+    }
+</style>
+</head>
+<body>
+<h1>Delivery volumes</h1>
+    <div id="pagination-buttons-top">
+        <button onclick="previousPage()">Previous</button>
+        <span id="page-indicator-up">Page 1</span>
+        <button onclick="nextPage()">Next</button>
+        <button onclick="loadDeliveryVolumes()">Refresh</button>
+        <a href="/delivery_creation">
+          <button>Create new delivery</button>
+        </a>
+    </div>
+   <table id="delivery-table">
+        <thead>
+            <tr>
+                <th>transfer_progress</th>
+                <th onclick="sortTable(0)">status</th>
+                <th onclick="sortTable(1)">id</th>
+                <th onclick="sortTable(2)">delivery</th>
+                <th onclick="sortTable(3)">origin_mountpoint</th>
+                <th onclick="sortTable(4)">origin_device</th>
+                <th onclick="sortTable(5)">modified_date</th>
+                <th onclick="sortTable(6)">uiid</th>
+                <th onclick="sortTable(7)">local_hash</th>
+                <th onclick="sortTable(8)">volume_uiid</th>
+                <th onclick="sortTable(9)">volume_size</th>
+                <th onclick="sortTable(10)">delivery_uiid</th>
+                <th onclick="sortTable(11)">delivery_creation_date</th>
+                <th>transfer_log</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Delivery volumes will be dynamically added here -->
+        </tbody>
+    </table>
+    
+    <div id="pagination-buttons">
+        <button onclick="previousPage()">Previous</button>
+        <span id="page-indicator">Page 1</span>
+        <button onclick="nextPage()">Next</button>
+        <button onclick="loadDeliveryVolumes()">Refresh</button>
+    </div>
+
+    <script>
+        let currentPage = 1;
+        let currentSortParams = {"columnIndex": 0, "isAscending": false};
+        let currentOffset = 0;
+        let currentPageSize = 20;
+        let currentRefreshRate = 30000;
+        let currentProgressRate = 5000;
+
+        function getColumnNameByIndex(tableId, columnIndex) {
+          const index = columnIndex + 1;
+          const table = document.getElementById(tableId);
+          const headerRow = table.rows[0];
+          if (index >= 0 && index < headerRow.cells.length) {
+            return headerRow.cells[index].textContent.trim();
+          } else {
+            return null;
+          }
+        }
+
+        function sortTable(columnIndex) {
+            const table = document.getElementById('delivery-table');
+            const headers = table.tHead.rows[0].cells;
+            const isAscending = headers[columnIndex].classList.contains('asc');
+            
+            // Remove sorting classes from all headers
+            Array.from(headers).forEach(header => {
+                header.classList.remove('asc', 'desc');
+            });
+            
+            // Set the sorting class based on the current sort order
+            headers[columnIndex].classList.add(isAscending ? 'desc' : 'asc');
+            
+            currentSortParams.columnIndex = columnIndex;
+            currentSortParams.isAscending = isAscending;
+            
+            loadDeliveryVolumes();
+
+        }
+        function getColumnNames(tableId) {
+          const table = document.getElementById(tableId);
+          const headerRow = table.rows[0];
+          const columnNames = [];
+
+          for (let i = 0; i < headerRow.cells.length; i++) {
+            const columnName = headerRow.cells[i].textContent.trim();
+            columnNames.push(columnName);
+          }
+
+          return columnNames;
+        }
+        function loadDeliveryVolumes() {
+            const table = document.getElementById('delivery-table');
+            columnIndex = currentSortParams.columnIndex;
+            isAscending = currentSortParams.isAscending;
+            columnName = getColumnNameByIndex('delivery-table', columnIndex);
+            fetch(`/get_delivery_volumes?limit=${currentPageSize}&offset=${currentOffset}&sort=${columnName}&reverse=${!isAscending ? 1 : 0}`)
+                .then(response => response.json())
+                .then(data => {
+                    // Append sorted rows to table body
+                    if (data.delivery_volumes.length == 0) {
+                        if (currentPage < 1) {
+                            currentPage = 1;
+                            currentOffset = 0;
+                        } else if (currentPage > 1) {
+                            currentPage--;
+                            currentOffset = Math.max(currentOffset - currentPageSize, 0);
+                        }
+                    } else {
+                            const tbody = table.querySelector('tbody');
+                            currentTransfers = [];
+                            while (tbody.firstChild) {
+                                tbody.firstChild.remove();
+                            }
+                            data.delivery_volumes.forEach(item => {
+                                const volume_id = item.id;
+                                const row = document.createElement('tr');
+                                header_names = getColumnNames('delivery-table');
+                                const cells = header_names.map(hname => {
+                                    const cell = document.createElement('td');
+                                    cell.id = item.id.toString()+"-"+hname;
+                                    cell.classList.add(hname);
+                                    if (hname == "transfer_progress") {
+                                        const prog_bar = document.createElement('progress');
+                                        prog_bar.id = item.id.toString() + "-progbar";
+                                        prog_bar.max="100";
+                                        prog_bar.value=item[hname];
+                                        cell.appendChild(prog_bar);
+                                    } else if (hname == "transfer_log") {
+                                        const link = document.createElement("a");
+                                        link.setAttribute('href', item[hname]);
+                                        link.innerText = hname;
+                                        cell.appendChild(link);
+                                    } else {
+                                        cell.innerText = item[hname];
+                                    }
+                                    return cell;
+                                });
+
+                                // Append cells to row
+                                cells.forEach(cell => {
+                                    row.appendChild(cell);
+                                });
+
+                                // Append row to table body
+                                tbody.appendChild(row);
+                            });
+                            updatePageIndicator();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading delivery volumes:', error);
+                });
+
+        }
+        function refreshProgressBars() {
+            const stats = document.getElementsByClassName("status");
+            Array.from(stats).forEach(scell => {
+                if (scell.innerText == "synchronizing") {
+                    const volume_id = scell.id.split("-")[0]
+                    fetch(`/get_progress?volume=${volume_id}`)
+                   .then(response => response.json())
+                   .then(data => {
+                        const progress_bar = document.getElementById(volume_id+"-progbar");
+                        scell.innerText = data.status;
+                        
+                        if (data.status != "interrupted/errored") {
+                            progress_bar.style.background = "tomato";
+                            progress_bar.value = data.progress;
+
+                        }
+                        
+                    })
+                    .catch(error => {
+                        console.error('Error retrieving progress information:', error);
+                    });
+                }
+            });
+        
+        }
+        function updatePageIndicator() {
+            const pageIndicator = document.getElementById('page-indicator');
+            pageIndicator.innerText = `Page ${currentPage}`;
+            const pageIndicatorUp = document.getElementById('page-indicator-up');
+            pageIndicatorUp.innerText = `Page ${currentPage}`;
+        }
+        
+        function previousPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                currentOffset = Math.max(currentOffset - currentPageSize, 0);
+                loadDeliveryVolumes();
+            }
+        }
+        
+        function nextPage() {
+            currentPage++;
+            currentOffset = currentOffset + currentPageSize;
+            loadDeliveryVolumes();
+        }
+        
+        function fullRefresh() {
+            loadDeliveryVolumes();
+            setTimeout(fullRefresh, currentRefreshRate);
+        }
+        
+        function progressRefresh() {
+            refreshProgressBars();
+            setTimeout(progressRefresh, currentProgressRate);
+        }
+
+        // Initial loading
+        loadDeliveryVolumes();
+        updatePageIndicator();
+        // Initialize periodic refresher
+        setTimeout(fullRefresh, currentRefreshRate);
+        setTimeout(progressRefresh, currentProgressRate);
+
+    </script>
+</body>
+</html>

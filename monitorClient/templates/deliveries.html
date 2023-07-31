@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Delivery Table</title>
+<style>
+    table {
+        font-family: Arial, Helvetica, sans-serif;
+        border-collapse: collapse;
+        width: 100%;
+    }
+
+    td, th {
+        border: 1px solid #ddd;
+        padding: 8px;
+    }
+
+    tr:nth-child(even) {
+        background-color: #f2f2f2;
+    }
+
+    tr:hover {
+        background-color: #ddd;
+    }
+
+    th {
+        padding-top: 12px;
+        padding-bottom: 12px;
+        text-align: left;
+        background-color: #04AA6D;
+        color: white;
+        cursor: pointer;
+    }
+</style>
+</head>
+<body>
+<h1>Delivery Table</h1>
+<table id="delivery-table">
+    <thead>
+        <tr>
+            <th onclick="sortTable(0)">Delivery ID</th>
+            <th onclick="sortTable(1)">Origin</th>
+            <th onclick="sortTable(2)">Registry Date</th>
+            <th onclick="sortTable(3)">Volumes</th>
+            <th onclick="sortTable(4)">Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        <!-- delivery rows will be added here -->
+    </tbody>
+</table>
+<script src = "https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+
+<script>
+    // sample delivery data
+    const deliveries = [
+        {
+            "delivery_id": "36a29d5b-e65a-4e7e-826d-23c2e2a594ce",
+            "origin":"sipecam@epalacios",
+            "registry_date":"2023/04/26-14:20:15",
+            "volumes": 3,
+            "status": "done"
+        },
+        {
+            "delivery_id": "36a29d5b-e65a-4e7e-82df-23c2e2a594ce",
+            "origin":"sipecam@epalacios",
+            "registry_date":"2023/04/26-14:20:15",
+            "volumes": 4,
+            "status": "ongoing"
+        }
+    ];
+
+
+    // function to populate the delivery table
+    function populateTable() {
+        const deliveryTable = document.getElementById('delivery-table');
+
+        deliveries.forEach(delivery => {
+            const row = deliveryTable.insertRow(-1);
+            row.insertCell(0).innerText = delivery.delivery_id;
+            row.insertCell(1).innerText = delivery.origin;
+            row.insertCell(2).innerText = delivery.registry_date;
+            row.insertCell(3).innerText = delivery.volumes;
+            row.insertCell(4).innerText = delivery.status;
+            row.classList.add(delivery.status === 'done' ? 'done' : 'ongoing');
+        });
+    }
+
+// array to keep track of sort order for each column (default: ascending)
+const sortOrder = ['asc', 'asc', 'asc', 'asc', 'asc'];
+
+function sortTable(columnIndex) {
+  const table = document.getElementById('delivery-table');
+  const rows = table.rows;
+  let switching = true;
+  let shouldSwitch;
+  let asc = true; // added for toggling sort order
+  while (switching) {
+    switching = false;
+    let i;
+    for (i = 1; i < rows.length - 1; i++) {
+      shouldSwitch = false;
+      const x = rows[i].getElementsByTagName('td')[columnIndex];
+      const y = rows[i + 1].getElementsByTagName('td')[columnIndex];
+      const xValue = isNaN(x.innerHTML) ? x.innerHTML.toLowerCase() : parseFloat(x.innerHTML);
+      const yValue = isNaN(y.innerHTML) ? y.innerHTML.toLowerCase() : parseFloat(y.innerHTML);
+      if (asc ? xValue > yValue : xValue < yValue) { // modified for toggling sort order
+        shouldSwitch = true;
+        break;
+      }
+    }
+    if (shouldSwitch) {
+      rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+      switching = true;
+    }
+  }
+  asc = !asc; // toggle sort order
+}
+
+
+
+
+
+document.addEventListener('DOMContentLoaded', () => {
+          populateTable();
+
+});
+
+</script>
+</body>
+</html>
