@@ -1,8 +1,10 @@
 import os
 import json
 import requests
+import logging as log
 from pprint import pprint
 
+from datetime import datetime
 from flask import Flask, render_template, jsonify, request, abort, session, redirect, url_for
 from config import Config
 from devices.storages import get_connected_drives
@@ -12,6 +14,13 @@ from threading import Thread
 
 SERVER_URL = "http://172.16.9.173:8306"
 app = Flask(__name__)
+
+def init_log():
+    now = datetime.now()
+    formatted_time = now.strftime('%Y-%m-%d %H:%M:%S.%f')
+    log.basicConfig(filename=f"monitor-{formatted_time}.log", filemode="w",
+                    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                    datefmt='[%d-%b-%y %H:%M:%S]', level=log.INFO)
 
 
 def create_app():
@@ -60,7 +69,11 @@ def create_app():
         response = requests.post(f"{SERVER_URL}/get_user_delivery_volumes", auth=(user, pw), headers=headers, data=json.dumps(params))
 
         if response.status_code == 200:
+            log.info("[/get_delivery_volumes] Successful call to /delivery_creation")
             return json.dumps(response.json())
+        else:
+            log.error(f"[/get_delivery_volumes] Error: {response.status_code}, reason: {response.reason}\n")
+            # log.error(f"[/delivery_creation] Content: {response.content}\n")
 
         abort(500, "Server error")
 
@@ -74,7 +87,9 @@ def create_app():
         # Call your function that returns the list of dictionaries
         data = get_connected_drives().to_dict(orient="records")
         # Convert the list of dictionaries to a JSON object and return it
-        return jsonify(data)
+        json_data = jsonify(data)
+        log.info(f"[/attached_drives] Attached drives: {json_data}")
+        return json_data
 
     def persist_volume(volume_meta, user, pw):
         mountpoint = volume_meta["origin_mountpoint"]
@@ -82,6 +97,7 @@ def create_app():
         info_resp = requests.get(f"{SERVER_URL}/inform_status?volume={volume_id}&status=hashing", auth=(user, pw))
 
         if info_resp.status_code != 200:
+            log.error(f"[persist_volume()] Error code: {info_resp.status_code}, reason: {info_resp.reason}. Status report failed")
             print("Status report failed")
             return None
 
@@ -91,6 +107,7 @@ def create_app():
         response = requests.post(f"{SERVER_URL}/persist_volume", auth=(user, pw), headers=headers, data=json.dumps(data))
 
         if response.status_code != 200:
+            log.error(f"[persist_volume()] Error code: {response.status_code}, reason: {response.reason}. Directory creation failed for volume {volume_meta}")
             print(f"Directory creation failed for volume {volume_meta}")
             return None
 
@@ -149,8 +166,10 @@ def create_app():
                                          "user": user,
                                          "pw": pw})
             send_thread.start()
-
+            log.info("[/create_delivery] Created delivery! Preparing volumes for data transfer")
             return jsonify({"message": "Created delivery! Preparing volumes for data transfer."})
+        else:
+            log.error(f"Error code: {response.status_code}, reason: {response.reason}")
 
         abort(400, description='Delivery creation failed.')
 
@@ -168,10 +187,12 @@ def create_app():
             if response.status_code == 200:
                 session['username'] = username
                 session['password'] = password
+                log.info(f"Successful login for user {username}" )
                 return redirect(url_for('index'))
             else:
                 # Authentication failed, show an error message
                 error = 'Invalid username or password'
+                log.error(f"Error: {response.status_code}, reason: {response.reason}")
                 return render_template('login.html', error=error)
         else:
             # Show the login form
@@ -181,5 +202,6 @@ def create_app():
     return app
 
 if __name__ == '__main__':
+    init_log()
     app = create_app()
     app.run(debug=True, port=8786, host='0.0.0.0')
